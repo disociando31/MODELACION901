@@ -26,34 +26,6 @@ from typing import List
 from scipy import stats
 
 
-# ==============================================================================
-# 1. ALGORITMO CONGRUENCIAL: GENERADOR CONGRUENCIAL LINEAL (LCG)
-# ==============================================================================
-#
-# Formula matematica:
-#       X(n+1) = (a * X(n) + c) mod m
-#
-# Donde:
-#   X0  : semilla (valor inicial, 0 <= X0 < m)
-#   a   : multiplicador
-#   c   : incremento
-#   m   : modulo (define el rango maximo de valores: 0 .. m-1)
-#
-# El numero pseudoaleatorio en el rango [0, 1) se obtiene como:
-#       U(n) = X(n) / m
-#
-# Condiciones para que el generador tenga PERIODO MAXIMO (teorema de Hull-
-# Dobell), es decir, que recorra los m valores posibles antes de repetirse:
-#   1) mcd(c, m) = 1                    (c y m son primos relativos)
-#   2) (a - 1) es divisible por todos los factores primos de m
-#   3) (a - 1) es divisible por 4 si m es divisible por 4
-#
-# Usamos los parametros clasicos de Numerical Recipes (ANSI C):
-#   a = 1664525, c = 1013904223, m = 2**32
-# que cumplen el teorema de Hull-Dobell y son ampliamente usados en la
-# practica por su buen comportamiento estadistico.
-# ==============================================================================
-
 class GeneradorCongruencialLineal:
     """Generador Congruencial Lineal (LCG) - algoritmo CONGRUENCIAL."""
 
@@ -87,29 +59,7 @@ class GeneradorCongruencialLineal:
         self.estado = self.semilla_inicial
 
 
-# ==============================================================================
-# 2. ALGORITMO NO CONGRUENCIAL: METODO DE CUADRADOS MEDIOS (MIDDLE-SQUARE)
-# ==============================================================================
-#
-# Propuesto por John von Neumann (1946). Es NO congruencial porque no usa
-# una relacion de recurrencia lineal con modulo; en su lugar, eleva al
-# cuadrado el numero anterior y extrae los digitos centrales.
-#
-# Algoritmo (para numeros de n digitos, tipicamente n par):
-#   1) Se parte de una semilla X0 de n digitos.
-#   2) Se eleva al cuadrado: Y = X(n)^2   -> resultado de hasta 2n digitos
-#      (se rellena con ceros a la izquierda si es necesario).
-#   3) Se extraen los n digitos centrales de Y; ese es el nuevo X(n+1).
-#   4) El numero pseudoaleatorio en [0, 1) es X(n+1) / 10^n.
-#
-# Limitaciones conocidas (importantes para la discusion en el informe):
-#   - Tiene periodos cortos y puede degenerar en 0 o entrar en ciclos
-#     pequeños dependiendo de la semilla.
-#   - Es sensible a la eleccion de la semilla: algunas semillas producen
-#     secuencias de muy baja calidad estadistica.
-#   - Por eso hoy en dia es un metodo principalmente didactico/historico,
-#     util para ilustrar el concepto de "no congruencial" y sus problemas.
-# ==============================================================================
+
 
 class GeneradorCuadradosMedios:
     """Metodo de Cuadrados Medios (Middle-Square) - algoritmo NO CONGRUENCIAL."""
@@ -119,7 +69,7 @@ class GeneradorCuadradosMedios:
         self.limite = 10 ** n_digitos
         if not (0 < semilla < self.limite):
             raise ValueError(f"La semilla debe tener {n_digitos} digitos "
-                              f"(0 < semilla < {self.limite})")
+                            f"(0 < semilla < {self.limite})")
         self.semilla_inicial = semilla
         self.estado = semilla
         self._contador_degeneracion = 0
@@ -133,8 +83,7 @@ class GeneradorCuadradosMedios:
         centro = cuadrado_str[inicio: inicio + self.n_digitos]
         nuevo_estado = int(centro)
 
-        # Salvaguarda didactica: si el generador degenera en 0 (limitacion
-        # conocida del metodo), se reinyecta una perturbacion impar basada
+#se reinyecta una perturbacion impar basada
         # en la semilla original para poder continuar la demostracion.
         if nuevo_estado == 0:
             self._contador_degeneracion += 1
@@ -146,7 +95,7 @@ class GeneradorCuadradosMedios:
         return self.estado / self.limite
 
     def generar_secuencia(self, cantidad: int, minimo: float = 0.0,
-                           maximo: float = 1.0) -> List[float]:
+                        maximo: float = 1.0) -> List[float]:
         secuencia = []
         for _ in range(cantidad):
             u = self.siguiente()
@@ -180,20 +129,8 @@ class ResultadoPruebas:
 
 
 def test_chi_cuadrado(datos: List[float], minimo: float, maximo: float,
-                       k_intervalos: int = 10, alpha: float = 0.05):
-    """
-    Test de Chi-cuadrado de bondad de ajuste para UNIFORMIDAD.
+                    k_intervalos: int = 10, alpha: float = 0.05):
 
-    Se divide el rango [minimo, maximo] en k_intervalos de igual ancho.
-    Se compara la frecuencia OBSERVADA en cada intervalo contra la
-    frecuencia ESPERADA bajo una distribucion uniforme (n / k_intervalos).
-
-            Estadistico: Chi2 = sum( (Oi - Ei)^2 / Ei )
-
-    H0: los datos provienen de una distribucion uniforme.
-    Si p_valor > alpha  -> NO se rechaza H0 (los datos son compatibles con
-    una distribucion uniforme).
-    """
     n = len(datos)
     ancho = (maximo - minimo) / k_intervalos
     frecuencias_obs = [0] * k_intervalos
@@ -209,30 +146,20 @@ def test_chi_cuadrado(datos: List[float], minimo: float, maximo: float,
 
     chi2_stat, p_valor = stats.chisquare(f_obs=frecuencias_obs, f_exp=frecuencias_esp)
     conclusion = ("No se rechaza H0: la secuencia es compatible con una "
-                  "distribucion uniforme.") if p_valor > alpha else \
-                 ("Se rechaza H0: hay evidencia de que la secuencia NO es "
-                  "uniforme.")
+                "distribucion uniforme.") if p_valor > alpha else \
+                ("Se rechaza H0: hay evidencia de que la secuencia NO es "
+                "uniforme.")
     return chi2_stat, p_valor, conclusion, frecuencias_obs
 
 
 def test_kolmogorov_smirnov(datos: List[float], minimo: float, maximo: float,
-                             alpha: float = 0.05):
-    """
-    Test de Kolmogorov-Smirnov de bondad de ajuste para UNIFORMIDAD.
+                            alpha: float = 0.05):
 
-    Compara la funcion de distribucion empirica de los datos contra la
-    funcion de distribucion acumulada teorica de una Uniforme(minimo, maximo).
-
-            Estadistico: D = max | Fn(x) - F(x) |
-
-    H0: los datos provienen de una distribucion Uniforme(minimo, maximo).
-    Si p_valor > alpha  -> NO se rechaza H0.
-    """
     ks_stat, p_valor = stats.kstest(datos, 'uniform', args=(minimo, maximo - minimo))
     conclusion = ("No se rechaza H0: la secuencia es compatible con una "
-                  "distribucion uniforme.") if p_valor > alpha else \
-                 ("Se rechaza H0: hay evidencia de que la secuencia NO es "
-                  "uniforme.")
+                "distribucion uniforme.") if p_valor > alpha else \
+                ("Se rechaza H0: hay evidencia de que la secuencia NO es "
+                "uniforme.")
     return ks_stat, p_valor, conclusion
 
 
@@ -250,14 +177,14 @@ def test_autocorrelacion_lag1(datos: List[float], alpha: float = 0.05):
     y = datos[1:]
     r, _ = stats.pearsonr(x, y)
     conclusion = ("No se observa evidencia fuerte de dependencia entre "
-                  "valores consecutivos (|r| < 0.1).") if abs(r) < 0.1 else \
-                 ("Se observa una posible dependencia entre valores "
-                  "consecutivos (|r| >= 0.1); revisar el generador.")
+                "valores consecutivos (|r| < 0.1).") if abs(r) < 0.1 else \
+                ("Se observa una posible dependencia entre valores "
+                "consecutivos (|r| >= 0.1); revisar el generador.")
     return r, conclusion
 
 
 def validar_generador(nombre: str, datos: List[float], minimo: float,
-                       maximo: float) -> ResultadoPruebas:
+                    maximo: float) -> ResultadoPruebas:
     chi2_stat, chi2_p, chi2_concl, _ = test_chi_cuadrado(datos, minimo, maximo)
     ks_stat, ks_p, ks_concl = test_kolmogorov_smirnov(datos, minimo, maximo)
     autocorr, autocorr_concl = test_autocorrelacion_lag1(datos)
